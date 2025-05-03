@@ -1,42 +1,46 @@
 import gdown
-import rasa
+import os
 from rasa.core.agent import Agent
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-# Google Drive file ID (from the link you provided)
+# Google Drive model file
 file_id = '184ZgbJASeV92FHNaDuT9ZT3F0hmIoIWY'
 url = f'https://drive.google.com/uc?export=download&id={file_id}'
+model_file = 'rasa_model.tar.gz'
 
-# Download the model from Google Drive
-output = 'rasa_model.tar.gz'
-gdown.download(url, output, quiet=False)
+# Download model if not already downloaded
+if not os.path.exists(model_file):
+    print("Downloading model...")
+    gdown.download(url, model_file, quiet=False)
+else:
+    print("Model already downloaded.")
 
-# Load the Rasa model
-agent = Agent.load(output)
+# Load Rasa model
+print("Loading model...")
+agent = Agent.load(model_file)
+print("Model loaded.")
 
-# Define function to handle messages from the Telegram bot
-def handle_message(update, context):
+# Handle incoming messages
+def handle_message(update: Update, context: CallbackContext):
     user_message = update.message.text
-    # Get the response from Rasa
-    response = agent.handle_text(user_message)
-    # Send the response back to the Telegram user
-    update.message.reply_text(response[0]['text'])
+    responses = agent.handle_text(user_message)
+    if responses:
+        update.message.reply_text(responses[0]['text'])
+    else:
+        update.message.reply_text("Sorry, I didn't understand that.")
 
-# Define a function to start the bot (command handler for "/start")
-def start(update, context):
-    update.message.reply_text("Hello! How can I assist you?")
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("Hi! I'm your Rasa bot. How can I help?")
 
-# Set up the Telegram bot with your token
 def main():
     updater = Updater(token="8032964681:AAFRC6k6MbgRbkt1-HyVfwg9KV6uQPM03Mo", use_context=True)
     dispatcher = updater.dispatcher
 
-    # Handlers for the start command and incoming messages
     dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(MessageHandler(Filters.text, handle_message))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
-    # Start the bot
+    print("Bot is running...")
     updater.start_polling()
     updater.idle()
 
